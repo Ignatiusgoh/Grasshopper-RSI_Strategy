@@ -83,25 +83,21 @@ def preprocessing(
             temp_df[f'RSI_ask_{period}_shift'] = temp_df['RSI_ask_{}'.format(period)].shift(1)
             temp_df[f'RSI_bid_{period}'] = get_rsi(temp_df['Bid Price'], period)
             temp_df[f'RSI_bid_{period}_shift'] = temp_df['RSI_bid_{}'.format(period)].shift(1)
-
-#         for ma in moving_average: 
-#             temp_df = get_MA(temp_df,ma)
-#             # temp_df['MA_{}_shift'.format(ma)] = temp_df['MA_{}'.format(ma)].shift(1)
         
-        # for ma in moving_average: 
-        #     temp_df[f'MA_{ma}'] = get_MA(
-        #         ((temp_df['Bid Price'] + temp_df['Ask Price'])/2), 
-        #         ma
-        #         )
+        for ma in moving_average: 
+            temp_df[f'MA_{ma}'] = get_MA(
+                ((temp_df['Bid Price'] + temp_df['Ask Price'])/2), 
+                ma
+                )
 
-#         # ma_crosses = []
-#         for ma in moving_average:
-#             moving_average_upper = moving_average[1:]
-#             for ma_upper in moving_average_upper:
-#                 if ma < ma_upper:
-#                     temp_df['MA_{}_{}_diff'.format(ma,ma_upper)] = abs(temp_df['MA_{}'.format(ma)] - temp_df['MA_{}'.format(ma_upper)])
-#                     # ma_crosses.append('{}_{}'.format(ma,ma_upper))
-#             moving_average_upper = moving_average_upper[1:]
+        ma_crosses = []
+        for ma in moving_average:
+            moving_average_upper = moving_average[1:]
+            for ma_upper in moving_average_upper:
+                if ma < ma_upper:
+                    temp_df['MA_{}_{}_diff'.format(ma,ma_upper)] = abs(temp_df['MA_{}'.format(ma)] - temp_df['MA_{}'.format(ma_upper)])
+                    ma_crosses.append('{}_{}'.format(ma,ma_upper))
+            moving_average_upper = moving_average_upper[1:]
 
         for atr in atr_period:
             temp_df['ATR'] = get_atr(
@@ -178,8 +174,8 @@ def to_enter_short(
 def long_position(
     df,
     remaining_list : list, 
-    atr_exit_multiple : int, 
-    atr_stoploss_multiple : int
+    atr_exit_multiple : float, 
+    atr_stoploss_multiple : float
     ): 
     
     # Preset: the first row of this new dataframe is the price of which we entered the position with its respective technical values
@@ -191,49 +187,44 @@ def long_position(
 
     # Dropping the first row of the dataframe 
     df = df.iloc[1: , :].reset_index(drop = True)
+    if df.empty == False:
+        for index, rsi in enumerate(remaining_list): 
+            current_time = df['time'][index]
+            current_price = df['Bid Price'][index]
+            if rsi == 0 or rsi == 1: 
+                from datetime import timedelta 
+                if df['Hour'][index] == 6: #Closing the position if it is the end of day 
+                    close_price = current_price
+                    reason = 'EOD Close'
+                    break 
 
-    for index, rsi in enumerate(remaining_list): 
-        current_time = df['time'][index]
-        current_price = df['Bid Price'][index]
-        if rsi == 0 or rsi == 1: 
-            from datetime import timedelta 
-            if df['Hour'][index] == 6: #Closing the position if it is the end of day 
-                close_price = current_price
-                reason = 'EOD Close'
-                break 
-
-            elif (current_time - entry_time) >= timedelta(hours = 4): #Closing the position if the position is held for more than 4 hours 
-                close_price = current_price
-                reason = '4 Hour Close'
-                break
-            
-            elif current_price >= exit_price: #Closing the position if current price is >= exit price 
-                close_price = current_price
-                reason = 'Exit Profits Close'
-                break
-
-            elif current_price <= stoploss_price: #Closing the position if the current price is <= stoploss price
-                close_price = current_price
-                reason = 'Stoploss Close'
-                break
+                elif (current_time - entry_time) >= timedelta(hours = 4): #Closing the position if the position is held for more than 4 hours 
+                    close_price = current_price
+                    reason = '4 Hour Close'
+                    break
                 
-            elif index + 1 == len(remaining_list):
-                close_price = current_price
-                reason = 'End of list'
-                break
+                elif current_price >= exit_price: #Closing the position if current price is >= exit price 
+                    close_price = current_price
+                    reason = 'Exit Profits Close'
+                    break
 
-            else: 
-                continue 
-            
-        elif rsi == -1: #Closing the position if the RSI overbought signal has been hit
-            close_price = current_price
-            reason = 'RSI Overbought Close'
-            break 
-            
-        # else: 
-        #     close_price = current_price
-        #     reason = 'End of list'
-        #     break 
+                elif current_price <= stoploss_price: #Closing the position if the current price is <= stoploss price
+                    close_price = current_price
+                    reason = 'Stoploss Close'
+                    break
+                    
+                elif index + 1 == len(remaining_list):
+                    close_price = current_price
+                    reason = 'End of list'
+                    break
+
+                else: 
+                    continue 
+                
+            elif rsi == -1: #Closing the position if the RSI overbought signal has been hit
+                close_price = current_price
+                reason = 'RSI Overbought Close'
+                break 
 
     data = {
         'Ticker' : df['sym'][0],
@@ -253,8 +244,8 @@ def long_position(
 def short_position(
     df,
     remaining_list : list, 
-    atr_exit_multiple : int, 
-    atr_stoploss_multiple : int
+    atr_exit_multiple : float, 
+    atr_stoploss_multiple : float
     ): 
     
     # Preset: the first row of this new dataframe is the price of which we entered the position with its respective technical values
